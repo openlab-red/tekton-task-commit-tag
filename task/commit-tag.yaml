@@ -1,0 +1,134 @@
+---
+# Tekton Task for committing changes and creating git tags
+# Uses alpine/git - NO runtime package installation
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: commit-tag
+  labels:
+    app.kubernetes.io/name: commit-tag
+    app.kubernetes.io/component: task
+    app.kubernetes.io/part-of: tekton-tasks
+  annotations:
+    tekton.dev/pipelines.minVersion: "0.50.0"
+    tekton.dev/categories: Git
+    tekton.dev/tags: git,commit,tag,release
+    tekton.dev/displayName: "commit-tag"
+    tekton.dev/platforms: "linux/amd64,linux/arm64"
+spec:
+  description: >-
+    Commits all staged changes and creates an annotated git tag for releases.
+    Supports both HTTPS and SSH authentication.
+
+  params:
+    - name: version
+      type: string
+      description: Version string for the release (e.g., 1.0.0)
+
+    - name: tag-prefix
+      type: string
+      description: Prefix for git tags (e.g., 'v' for v1.0.0)
+      default: "v"
+
+    - name: branch
+      type: string
+      description: Git branch to push to
+      default: "main"
+
+    - name: git-user-name
+      type: string
+      description: Git user name for commits
+      default: "tekton-pipeline"
+
+    - name: git-user-email
+      type: string
+      description: Git user email for commits
+      default: "tekton@pipeline.local"
+
+    - name: commit-message
+      type: string
+      description: Custom commit message template (use ${TAG_NAME} for substitution)
+      default: "chore(release): ${TAG_NAME}\n\n[skip ci]"
+
+  results:
+    - name: tag
+      description: The git tag that was created
+
+    - name: commit
+      description: The commit SHA of the release commit
+
+  workspaces:
+    - name: source
+      description: Workspace containing the git repository
+
+    - name: git-credentials
+      description: Workspace containing git credentials
+      optional: true
+
+  stepTemplate:
+    env:
+      - name: HOME
+        value: /tekton/home
+    computeResources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 256Mi
+
+  steps:
+    - name: commit-and-push
+      image: quay-registry-quay-quay-system.apps.cluster-9rn6w.9rn6w.sandbox5513.opentlc.com/alinma/ci-tools:1.1.0
+      workingDir: $(workspaces.source.path)
+      script: |
+        #!/bin/sh
+        set -e
+
+        VERSION="$(params.version)"
+        TAG_NAME="$(params.tag-prefix)${VERSION}"
+        BRANCH="$(params.branch)"
+        BRANCH="${BRANCH#refs/heads/}"
+
+        echo "[commit-tag] Configuring git..."
+        git config --global user.name "$(params.git-user-name)"
+        git config --global user.email "$(params.git-user-email)"
+        git config --global --add safe.directory $(workspaces.source.path)
+
+        # Configure credentials if provided
+        if [ -f "$(workspaces.git-credentials.path)/.git-credentials" ]; then
+          echo "[commit-tag] Configuring HTTPS credentials..."
+          cp $(workspaces.git-credentials.path)/.git-credentials ~/.git-credentials
+          git config --global credential.helper store
+        fi
+
+        # SSH key support
+        if [ -f "$(workspaces.git-credentials.path)/id_rsa" ]; then
+          echo "[commit-tag] Configuring SSH key..."
+          mkdir -p ~/.ssh
+          cp $(workspaces.git-credentials.path)/id_rsa ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan github.com gitlab.com >> ~/.ssh/known_hosts 2>/dev/null || true
+        fi
+
+        echo "[commit-tag] Staging all changes..."
+        git add -A
+
+        echo "[commit-tag] Creating release commit..."
+        COMMIT_MSG=$(echo "$(params.commit-message)" | sed "s/\${TAG_NAME}/${TAG_NAME}/g")
+        git commit -m "${COMMIT_MSG}" || echo "[commit-tag] No changes to commit"
+
+        echo "[commit-tag] Creating tag: ${TAG_NAME}"
+        git tag -a "${TAG_NAME}" -m "Release ${TAG_NAME}"
+
+        echo "[commit-tag] Pushing changes to ${BRANCH}..."
+        git push origin "HEAD:${BRANCH}"
+        git push origin "${TAG_NAME}"
+
+        # Write results
+        echo -n "${TAG_NAME}" > $(results.tag.path)
+        COMMIT_SHA=$(git rev-parse HEAD)
+        echo -n "${COMMIT_SHA}" > $(results.commit.path)
+
+        echo "[commit-tag] Release ${TAG_NAME} completed!"
+        echo "[commit-tag] Commit: ${COMMIT_SHA}"
