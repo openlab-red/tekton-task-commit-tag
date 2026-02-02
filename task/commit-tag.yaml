@@ -50,6 +50,11 @@ spec:
       description: Custom commit message template (use ${TAG_NAME} for substitution)
       default: "chore(release): ${TAG_NAME}\n\n[skip ci]"
 
+    - name: CI_TOOLS_IMAGE
+      type: string
+      description: CI tools container image
+      default: "quay-registry-quay-quay-system.apps.cluster-9rn6w.9rn6w.sandbox5513.opentlc.com/alinma/ci-tools:1.2.0"
+
   results:
     - name: tag
       description: The git tag that was created
@@ -82,7 +87,7 @@ spec:
 
   steps:
     - name: commit-and-push
-      image: quay-registry-quay-quay-system.apps.cluster-9rn6w.9rn6w.sandbox5513.opentlc.com/alinma/ci-tools:1.1.0
+      image: $(params.CI_TOOLS_IMAGE)
       workingDir: $(workspaces.source.path)
       script: |
         #!/bin/sh
