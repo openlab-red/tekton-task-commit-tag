@@ -1,0 +1,5 @@
+site_name: Commit Tag Task
+nav:
+  - Home: index.md
+plugins:
+  - techdocs-core

@@ -1,0 +1,20 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: tekton-task-commit-tag
+  description: Tekton Task for committing changes and creating git tags
+  annotations:
+    backstage.io/techdocs-ref: dir:.
+  links:
+    - url: https://azuredevops.alinma.internal/DevSecOps/tekton-tasks/_git/tekton-task-commit-tag
+      title: Azure DevOps
+  tags:
+    - tekton
+    - task
+    - git
+    - versioning
+spec:
+  type: library
+  lifecycle: production
+  owner: platform-team
+  system: alinma-platform
