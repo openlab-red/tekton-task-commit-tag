@@ -53,7 +53,7 @@ spec:
     - name: CI_TOOLS_IMAGE
       type: string
       description: CI tools container image
-      default: "quay-registry-quay-quay-system.apps.cluster-9rn6w.9rn6w.sandbox5513.opentlc.com/alinma/ci-tools:1.2.0"
+      default: "quaynonprod.alinma.internal/alinma/ci-tools:1.2.0"
 
   results:
     - name: tag
